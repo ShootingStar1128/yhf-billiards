@@ -1,37 +1,64 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>용호패밀리 온라인 당구</title><style>
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(#07111d,#141b2d);color:#fff;font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;display:flex;justify-content:center}.app{width:min(100vw,560px);min-height:100vh;padding:12px}.card{background:#121b2d;border:1px solid #ffffff14;border-radius:16px;padding:12px;margin-bottom:10px}.brand{font-size:20px;font-weight:900}.gold{color:#ffd76a}.row{display:flex;gap:8px}.row>*{flex:1}input,button{width:100%;padding:12px;border-radius:12px;border:0;font-size:14px}input{background:#202b45;color:white;border:1px solid #ffffff16}button{background:#1769ff;color:white;font-weight:900}.secondary{background:#2b3755}.red{background:#9d2c3a}.hidden{display:none}.score{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;text-align:center}.num{font-size:34px;font-weight:950}.turn{text-align:center;font-size:13px;margin:8px 0}.table{position:relative;aspect-ratio:9/13.5;background:#5d341f;border-radius:24px;padding:16px}canvas{width:100%;height:100%;display:block;background:#087447;border-radius:15px;touch-action:none}.hint{position:absolute;left:28px;right:28px;bottom:24px;text-align:center;background:#0009;border-radius:10px;padding:7px;font-size:12px}.roomcode{text-align:center;font-size:28px;font-weight:950;letter-spacing:3px}.small{font-size:11px;color:#aab2c5;text-align:center}
-</style></head><body><div class="app">
-<div class="card"><div class="brand">⚔️ <span class="gold">YHF</span> 용호패밀리 온라인 당구</div><div class="small">1:1 실시간 대결 · 먼저 5점 승리</div></div>
-<div id="lobby" class="card">
-<input id="name" placeholder="닉네임 입력" value="용호"><div style="height:8px"></div><button id="create">방 만들기</button><div style="height:8px"></div><div class="row"><input id="room" placeholder="방 코드 5자리"><button id="join" class="secondary">방 참가</button></div><p id="msg" class="small"></p>
-</div>
-<div id="game" class="hidden">
-<div class="card"><div class="small">방 코드</div><div id="roomCode" class="roomcode gold">-----</div><div class="small">이 코드를 시청자에게 알려주세요.</div></div>
-<div class="card score"><div><div id="p1">선수1</div><div class="num" id="s1">0</div></div><b>VS</b><div><div id="p2">대기중</div><div class="num" id="s2">0</div></div></div>
-<div class="turn">현재 턴: <b class="gold" id="turn">대기중</b></div>
-<div class="table"><canvas id="c" width="900" height="1350"></canvas><div id="hint" class="hint">상대 참가를 기다리는 중…</div></div>
-<div style="height:8px"></div><div class="row"><button id="copy" class="secondary">방 코드 복사</button><button id="reset" class="red">경기 초기화</button></div>
-</div>
-</div><script src="/socket.io/socket.io.js"></script><script>
-const socket=io();let myIndex=null,roomId=null,state=null,running=false,drag=false,dragPos=null,railHits=0,objHits=new Set();
-const c=document.getElementById('c'),ctx=c.getContext('2d'),W=900,H=1350,rail=52,r=24,friction=.992,stop=.035,maxPower=28;let balls=[];
-const el=id=>document.getElementById(id);const defaultBalls=()=>[{x:W*.42,y:H*.73,vx:0,vy:0,c:'#fff7df',stroke:'#ddd'},{x:W*.35,y:H*.30,vx:0,vy:0,c:'#ffd31d',stroke:'#d6a900'},{x:W*.66,y:H*.34,vx:0,vy:0,c:'#e63643',stroke:'#a91622'}];balls=defaultBalls();
-function normFromServer(bs){return bs.map((b,i)=>({x:b.x<=1?b.x*W:b.x,y:b.y<=1?b.y*H:b.y,vx:b.vx||0,vy:b.vy||0,c:i===0?'#fff7df':i===1?'#ffd31d':'#e63643',stroke:i===0?'#ddd':i===1?'#d6a900':'#a91622'}))}
-function serial(){return balls.map(b=>({x:b.x,y:b.y,vx:b.vx,vy:b.vy}))}
-function enter(room,index){roomId=room;myIndex=index;el('lobby').classList.add('hidden');el('game').classList.remove('hidden');el('roomCode').textContent=room}
-el('create').onclick=()=>socket.emit('createRoom',{name:el('name').value.trim()});el('join').onclick=()=>socket.emit('joinRoom',{room:el('room').value,name:el('name').value.trim()});
-socket.on('roomCreated',d=>enter(d.room,d.index));socket.on('joined',d=>enter(d.room,d.index));socket.on('errorMsg',m=>el('msg').textContent=m);
-socket.on('state',s=>{state=s;if(s.balls)balls=normFromServer(s.balls);renderState();});socket.on('remoteShot',d=>{balls=normFromServer(d.balls);running=true;});
-function renderState(){if(!state)return;el('p1').textContent=state.players[0]?.name||'선수1';el('p2').textContent=state.players[1]?.name||'대기중';el('s1').textContent=state.players[0]?.score||0;el('s2').textContent=state.players[1]?.score||0;el('turn').textContent=state.players[state.turn]?.name||'대기중';if(state.status==='waiting')el('hint').textContent='상대 참가를 기다리는 중…';else if(state.status==='finished'){el('hint').textContent='🏆 '+(state.players[state.winner]?.name||'승자')+' 우승!';running=false}else el('hint').textContent=myIndex===state.turn?'내 차례! 흰 공을 뒤로 끌었다 놓으세요':'상대 차례입니다';}
-function collide(a,b,ia,ib){const dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);if(!d||d>=2*r)return;const nx=dx/d,ny=dy/d,o=2*r-d;a.x-=nx*o/2;a.y-=ny*o/2;b.x+=nx*o/2;b.y+=ny*o/2;const rvx=b.vx-a.vx,rvy=b.vy-a.vy,rel=rvx*nx+rvy*ny;if(rel<0){const j=-rel;a.vx-=j*nx;a.vy-=j*ny;b.vx+=j*nx;b.vy+=j*ny}if(ia===0&&ib>0)objHits.add(ib);if(ib===0&&ia>0)objHits.add(ia)}
-function physics(){let moving=false;for(let i=0;i<balls.length;i++){const b=balls[i];b.x+=b.vx;b.y+=b.vy;b.vx*=friction;b.vy*=friction;if(Math.abs(b.vx)<stop)b.vx=0;if(Math.abs(b.vy)<stop)b.vy=0;if(b.vx||b.vy)moving=true;if(b.x<rail+r){b.x=rail+r;b.vx=Math.abs(b.vx);if(i===0)railHits++}if(b.x>W-rail-r){b.x=W-rail-r;b.vx=-Math.abs(b.vx);if(i===0)railHits++}if(b.y<rail+r){b.y=rail+r;b.vy=Math.abs(b.vy);if(i===0)railHits++}if(b.y>H-rail-r){b.y=H-rail-r;b.vy=-Math.abs(b.vy);if(i===0)railHits++}}
-for(let i=0;i<balls.length;i++)for(let j=i+1;j<balls.length;j++)collide(balls[i],balls[j],i,j);if(running&&!moving){running=false;const success=objHits.size===2&&railHits>=3;socket.emit('shotEnd',{room:roomId,balls:serial(),success});}}
-function draw(){ctx.clearRect(0,0,W,H);ctx.fillStyle='#087447';ctx.fillRect(0,0,W,H);ctx.fillStyle='#063f2a';ctx.fillRect(0,0,W,rail);ctx.fillRect(0,H-rail,W,rail);ctx.fillRect(0,0,rail,H);ctx.fillRect(W-rail,0,rail,H);if(drag&&dragPos&&!running){const q=balls[0];ctx.strokeStyle='white';ctx.lineWidth=5;ctx.setLineDash([15,12]);ctx.beginPath();ctx.moveTo(q.x,q.y);ctx.lineTo(q.x+(q.x-dragPos.x)*2.4,q.y+(q.y-dragPos.y)*2.4);ctx.stroke();ctx.setLineDash([])}for(const b of balls){ctx.beginPath();ctx.fillStyle='rgba(0,0,0,.22)';ctx.arc(b.x+7,b.y+9,r,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.fillStyle=b.c;ctx.strokeStyle=b.stroke;ctx.lineWidth=3;ctx.arc(b.x,b.y,r,0,Math.PI*2);ctx.fill();ctx.stroke()}}
-function loop(){if(running){physics();physics();if(roomId&&state&&myIndex===state.turn)socket.emit('shot',{room:roomId,balls:serial()})}draw();requestAnimationFrame(loop)}
-function pos(e){const rect=c.getBoundingClientRect(),p=e.touches?e.touches[0]:e;return{x:(p.clientX-rect.left)*W/rect.width,y:(p.clientY-rect.top)*H/rect.height}}
-function down(e){if(!state||state.status!=='playing'||myIndex!==state.turn||running)return;const p=pos(e),q=balls[0];if(Math.hypot(p.x-q.x,p.y-q.y)<90){drag=true;dragPos=p;e.preventDefault()}}
-function move(e){if(!drag)return;dragPos=pos(e);e.preventDefault()}
-function up(e){if(!drag)return;const q=balls[0],p=dragPos;drag=false;const dx=q.x-p.x,dy=q.y-p.y,dist=Math.hypot(dx,dy);if(dist>12){const power=Math.min(maxPower,dist/10),len=Math.max(1,dist);balls[0].vx=dx/len*power;balls[0].vy=dy/len*power;railHits=0;objHits.clear();running=true;socket.emit('shot',{room:roomId,balls:serial()})}dragPos=null;e.preventDefault()}
-c.addEventListener('mousedown',down);c.addEventListener('mousemove',move);window.addEventListener('mouseup',up);c.addEventListener('touchstart',down,{passive:false});c.addEventListener('touchmove',move,{passive:false});c.addEventListener('touchend',up,{passive:false});
-el('copy').onclick=async()=>{await navigator.clipboard?.writeText(roomId);el('hint').textContent='방 코드를 복사했습니다'};el('reset').onclick=()=>socket.emit('resetMatch',{room:roomId});loop();
-</script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>용호패밀리 당구대회</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="badge">YHF BILLIARDS</div>
+    <h1>🎱 용호패밀리 당구대회</h1>
+    <p>참가자 등록 · 대진 추첨 · 경기 결과 기록</p>
+    <a class="primary" href="#players">대회 시작하기</a>
+  </header>
+
+  <main>
+    <section class="card" id="players">
+      <h2>1. 참가자 등록</h2>
+      <p class="muted">이름을 입력하고 추가를 눌러주세요.</p>
+      <div class="row">
+        <input id="playerName" type="text" maxlength="20" placeholder="예: 용호" />
+        <button id="addPlayer">추가</button>
+      </div>
+      <div id="playerList" class="chips"></div>
+      <div class="actions">
+        <button id="clearPlayers" class="ghost">전체 삭제</button>
+        <button id="makeBracket">대진표 만들기</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. 대진표</h2>
+      <p class="muted">참가자를 등록한 뒤 대진표 만들기를 눌러주세요.</p>
+      <div id="bracket" class="bracket empty">아직 대진표가 없습니다.</div>
+    </section>
+
+    <section class="card">
+      <h2>3. 경기 결과 기록</h2>
+      <div class="score-grid">
+        <input id="matchTitle" placeholder="경기명 예: 준결승 1경기" />
+        <input id="p1" placeholder="선수 1" />
+        <input id="s1" type="number" min="0" placeholder="점수" />
+        <input id="p2" placeholder="선수 2" />
+        <input id="s2" type="number" min="0" placeholder="점수" />
+        <button id="saveMatch">결과 저장</button>
+      </div>
+      <div id="results"></div>
+    </section>
+
+    <section class="card rules">
+      <h2>대회 안내</h2>
+      <ul>
+        <li>참가자를 등록하면 자동으로 대진을 섞어줍니다.</li>
+        <li>홀수 인원일 경우 한 명은 자동 부전승 처리됩니다.</li>
+        <li>경기 결과는 이 휴대폰/브라우저에 자동 저장됩니다.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>⚔️ YHF 용호패밀리 ⚔️</footer>
+  <script src="/app.js"></script>
+</body>
+</html>
