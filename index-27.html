@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>용호패밀리 실전 당구 연습</title>
+<style>
+*{box-sizing:border-box}
+:root{--panel:#10251d;--line:#2b5946;--text:#f5faf7;--muted:#a9c0b6;--gold:#f1c84b}
+body{margin:0;background:linear-gradient(180deg,#06110d,#0a1b14);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+header{text-align:center;padding:24px 14px 12px}.badge{display:inline-block;padding:6px 11px;border:1px solid #527564;border-radius:999px;font-weight:800;font-size:12px}
+h1{font-size:clamp(26px,7vw,42px);margin:10px 0 5px}header p{margin:0;color:var(--muted);font-size:14px}
+main{width:min(900px,96%);margin:auto;padding-bottom:28px}.panel{background:#10251d;border:1px solid var(--line);border-radius:18px;padding:12px;margin:10px 0}
+.topbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}.mode{display:flex;gap:6px;flex-wrap:wrap}
+button,select{min-height:44px;border-radius:11px;border:1px solid #486b5c;font-size:15px;font-weight:800}
+button{padding:9px 13px;background:var(--gold);color:#201b08}button.secondary{background:transparent;color:#eef7f3}
+select{background:#0a1712;color:#fff;padding:8px 10px}.help{color:var(--muted);font-size:13px;margin:8px 2px 10px}
+.tableWrap{border-radius:16px;overflow:hidden;border:6px solid #3a2116;background:#5a321e}
+canvas{display:block;width:100%;height:auto;aspect-ratio:12/7;background:#0d6749;touch-action:none}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}.stat{padding:9px 4px;text-align:center;border:1px solid var(--line);border-radius:12px;background:#0b1a14}
+.stat small{display:block;color:var(--muted);font-size:11px}.stat b{display:block;font-size:18px;margin-top:2px}
+.message{margin-top:9px;padding:10px 12px;border-radius:12px;background:#0a1812;border:1px solid #294e3e;font-weight:700}
+.powerRow{display:flex;align-items:center;gap:8px;margin-top:10px}.powerRow label{font-size:13px;color:var(--muted)}input[type=range]{width:100%}
+.legend{font-size:12px;color:var(--muted);line-height:1.55;margin-top:9px}footer{text-align:center;color:#80998e;padding:18px;font-size:13px}
+@media(max-width:500px){.stats{grid-template-columns:repeat(2,1fr)}h1{font-size:28px}}
+</style>
+</head>
+<body>
+<header><div class="badge">⚔️ YHF BILLIARDS ⚔️</div><h1>🎱 용호패밀리 실전 당구 연습</h1><p>흰 공을 끌어서 조준하고 손을 놓으면 샷!</p></header>
+<main><section class="panel">
+<div class="topbar">
+<div class="mode">
+<select id="mode"><option value="3c">3쿠션 연습</option><option value="free">자유 연습</option></select>
+<button id="randomBtn" class="secondary">공 랜덤 배치</button>
+<button id="resetBtn" class="secondary">같은 배치 다시</button>
+</div>
+<button id="newGameBtn">기록 초기화</button>
+</div>
+<div class="help">흰 공을 손가락으로 누른 채 <b>뒤쪽으로 끌었다가 놓으세요.</b> 길게 끌수록 강하게 나갑니다.</div>
+<div class="tableWrap"><canvas id="game" width="900" height="525"></canvas></div>
+<div class="powerRow"><label for="powerLimit">최대 파워</label><input id="powerLimit" type="range" min="70" max="180" value="130"></div>
+<div class="stats">
+<div class="stat"><small>샷</small><b id="shotCount">0</b></div>
+<div class="stat"><small>성공</small><b id="scoreCount">0</b></div>
+<div class="stat"><small>쿠션</small><b id="cushionCount">0</b></div>
+<div class="stat"><small>상태</small><b id="status">준비</b></div>
+</div>
+<div id="message" class="message">흰 공을 터치해서 첫 샷을 시작하세요.</div>
+<div class="legend"><b>3쿠션:</b> 흰 공이 빨간 공·노란 공을 모두 맞히고, 두 번째 목적구 전에 쿠션 3회 이상이면 성공.<br><b>자유 연습:</b> 쿠션 수와 관계없이 두 목적구를 모두 맞히면 성공.</div>
+</section></main>
+<footer>용호패밀리 당구대회 · 모바일 연습용</footer>
+<script>
+(()=>{
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+const W=900,H=525,R=18,rail=34;
+const shotEl=document.getElementById("shotCount"),scoreEl=document.getElementById("scoreCount"),cushionEl=document.getElementById("cushionCount"),statusEl=document.getElementById("status"),msgEl=document.getElementById("message"),modeEl=document.getElementById("mode"),powerLimit=document.getElementById("powerLimit");
+let shots=0,scores=0,drag=false,dragX=0,dragY=0,moving=false,raf=0,last=0,shotCushions=0,objectHits=new Set(),shotScored=false,lastLayout=null;
+const balls=[{id:"cue",x:205,y:260,vx:0,vy:0,color:"#f4f4f4"},{id:"red",x:620,y:180,vx:0,vy:0,color:"#d52d2d"},{id:"yellow",x:640,y:340,vx:0,vy:0,color:"#f1c232"}];
+const setMessage=t=>msgEl.textContent=t;
+const allStopped=()=>balls.every(b=>Math.hypot(b.vx,b.vy)<3);
+const snapshot=()=>balls.map(b=>({x:b.x,y:b.y}));
+function resetShotState(){shotCushions=0;objectHits=new Set();shotScored=false;cushionEl.textContent="0";statusEl.textContent="준비";}
+function applyLayout(layout){cancelAnimationFrame(raf);moving=false;drag=false;last=0;layout.forEach((p,i)=>Object.assign(balls[i],{x:p.x,y:p.y,vx:0,vy:0}));resetShotState();draw();}
+function validPos(x,y,placed){if(x<rail+R+10||x>W-rail-R-10||y<rail+R+10||y>H-rail-R-10)return false;return placed.every(p=>Math.hypot(x-p.x,y-p.y)>R*5);}
+function randomLayout(){const placed=[];for(let i=0;i<3;i++){let p,tries=0;do{p={x:rail+R+25+Math.random()*(W-2*(rail+R+25)),y:rail+R+25+Math.random()*(H-2*(rail+R+25))};tries++;}while(!validPos(p.x,p.y,placed)&&tries<500);placed.push(p)}lastLayout=placed.map(p=>({...p}));applyLayout(lastLayout);setMessage("새 배치입니다. 흰 공을 끌어서 조준하세요.");}
+function drawTable(){ctx.clearRect(0,0,W,H);ctx.fillStyle="#5b321f";ctx.fillRect(0,0,W,H);ctx.fillStyle="#0d6a49";ctx.fillRect(rail,rail,W-rail*2,H-rail*2);ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=2;ctx.strokeRect(rail+5,rail+5,W-(rail+5)*2,H-(rail+5)*2);}
+function drawBall(b){ctx.save();ctx.shadowColor="rgba(0,0,0,.45)";ctx.shadowBlur=8;ctx.shadowOffsetY=4;const g=ctx.createRadialGradient(b.x-7,b.y-8,2,b.x,b.y,R);g.addColorStop(0,"#fff");g.addColorStop(.28,b.color);g.addColorStop(1,b.color);ctx.fillStyle=g;ctx.beginPath();ctx.arc(b.x,b.y,R,0,Math.PI*2);ctx.fill();ctx.restore();}
+function drawAim(){if(!drag)return;const cue=balls[0],dx=cue.x-dragX,dy=cue.y-dragY,len=Math.hypot(dx,dy);if(len<1)return;const nx=dx/len,ny=dy/len;ctx.setLineDash([10,9]);ctx.strokeStyle="rgba(255,255,255,.92)";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cue.x+nx*(R+2),cue.y+ny*(R+2));ctx.lineTo(cue.x+nx*260,cue.y+ny*260);ctx.stroke();ctx.setLineDash([]);ctx.strokeStyle="#d9b27b";ctx.lineWidth=8;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(cue.x-nx*(R+10),cue.y-ny*(R+10));ctx.lineTo(cue.x-nx*(R+120),cue.y-ny*(R+120));ctx.stroke();}
+function draw(){drawTable();balls.forEach(drawBall);drawAim();}
+function pointer(e){const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};}
+function onDown(e){if(moving)return;const p=pointer(e),cue=balls[0];if(Math.hypot(p.x-cue.x,p.y-cue.y)<=R+28){drag=true;dragX=p.x;dragY=p.y;statusEl.textContent="조준";try{canvas.setPointerCapture(e.pointerId)}catch(_){ }draw();}}
+function onMove(e){if(!drag)return;const p=pointer(e);dragX=p.x;dragY=p.y;draw();}
+function onUp(){if(!drag)return;drag=false;const cue=balls[0],dx=cue.x-dragX,dy=cue.y-dragY,len=Math.hypot(dx,dy);if(len<14){statusEl.textContent="준비";draw();return}const speed=Math.min(len,220)*6.2*(Number(powerLimit.value)/100);cue.vx=dx/len*speed;cue.vy=dy/len*speed;shots++;shotEl.textContent=shots;resetShotState();moving=true;statusEl.textContent="진행";setMessage("샷 진행 중...");last=0;raf=requestAnimationFrame(step);}
+function cushionBounce(b){let bounced=0;if(b.x-R<rail){b.x=rail+R;b.vx=Math.abs(b.vx)*.94;bounced++}else if(b.x+R>W-rail){b.x=W-rail-R;b.vx=-Math.abs(b.vx)*.94;bounced++}if(b.y-R<rail){b.y=rail+R;b.vy=Math.abs(b.vy)*.94;bounced++}else if(b.y+R>H-rail){b.y=H-rail-R;b.vy=-Math.abs(b.vy)*.94;bounced++}if(b.id==="cue"&&bounced){shotCushions+=bounced;cushionEl.textContent=shotCushions;}}
+function collide(a,b){let dx=b.x-a.x,dy=b.y-a.y,dist=Math.hypot(dx,dy);if(!dist||dist>R*2)return;const nx=dx/dist,ny=dy/dist,over=R*2-dist;a.x-=nx*over/2;a.y-=ny*over/2;b.x+=nx*over/2;b.y+=ny*over/2;const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;if(rel<0){const imp=-rel*.98;a.vx-=imp*nx;a.vy-=imp*ny;b.vx+=imp*nx;b.vy+=imp*ny}let target=null;if(a.id==="cue"&&b.id!=="cue")target=b.id;if(b.id==="cue"&&a.id!=="cue")target=a.id;if(target&&!objectHits.has(target)){objectHits.add(target);if(objectHits.size===1){setMessage((target==="red"?"빨간 공":"노란 공")+" 첫 목적구 적중! 쿠션 "+shotCushions+"회")}else if(objectHits.size===2&&!shotScored){const success=modeEl.value==="free"||shotCushions>=3;if(success){scores++;scoreEl.textContent=scores;shotScored=true;statusEl.textContent="성공!";setMessage(modeEl.value==="3c"?"🎉 3쿠션 성공!":"🎉 두 목적구 적중 성공!")}else{setMessage("두 공은 맞혔지만 쿠션이 "+shotCushions+"회입니다.")}}}}
+function step(t){const dt=Math.min(((t-last)||16)/1000,.025);last=t;for(let k=0;k<2;k++){const sdt=dt/2;balls.forEach(b=>{b.x+=b.vx*sdt;b.y+=b.vy*sdt;cushionBounce(b);const f=Math.pow(.991,sdt*60);b.vx*=f;b.vy*=f;if(Math.hypot(b.vx,b.vy)<2.5){b.vx=0;b.vy=0}});collide(balls[0],balls[1]);collide(balls[0],balls[2]);collide(balls[1],balls[2]);}draw();if(allStopped()){moving=false;last=0;if(!shotScored){statusEl.textContent="준비";if(objectHits.size<2)setMessage("샷 종료. 다시 도전하세요.")}return}raf=requestAnimationFrame(step);}
+canvas.addEventListener("pointerdown",onDown);canvas.addEventListener("pointermove",onMove);canvas.addEventListener("pointerup",onUp);canvas.addEventListener("pointercancel",()=>{drag=false;draw()});
+document.getElementById("randomBtn").addEventListener("click",()=>{if(!moving)randomLayout()});
+document.getElementById("resetBtn").addEventListener("click",()=>{if(!moving&&lastLayout){applyLayout(lastLayout);setMessage("같은 배치로 다시 연습합니다.")}});
+document.getElementById("newGameBtn").addEventListener("click",()=>{if(moving)return;shots=0;scores=0;shotEl.textContent="0";scoreEl.textContent="0";randomLayout();});
+modeEl.addEventListener("change",()=>setMessage(modeEl.value==="3c"?"3쿠션 모드입니다.":"자유 연습 모드입니다."));
+lastLayout=snapshot();draw();
+})();
+</script>
+</body>
+</html>
