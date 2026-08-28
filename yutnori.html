@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>용호패밀리 윷놀이</title>
+<style>
+*{box-sizing:border-box}
+:root{
+  --bg:#08110e;--panel:#11241d;--line:#315748;--text:#f6faf8;--muted:#a8beb5;
+  --gold:#f1cb4b;--red:#dc4c4c;--blue:#4f79e2;--board:#efe4c9;--ink:#392b1e
+}
+body{
+  margin:0;background:linear-gradient(180deg,#07100d,#0d1b16);color:var(--text);
+  font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif
+}
+header{text-align:center;padding:22px 14px 12px}
+.badge{display:inline-block;padding:6px 11px;border:1px solid #55786a;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:1px}
+h1{font-size:clamp(28px,8vw,46px);margin:10px 0 4px}
+header p{margin:0;color:var(--muted);font-size:14px}
+main{width:min(900px,96%);margin:auto;padding-bottom:28px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:12px;margin:10px 0}
+.teams{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.team{border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center;background:#0b1914}
+.team.active{outline:3px solid rgba(241,203,75,.32)}
+.team .name{font-weight:900;font-size:17px}.team small{color:var(--muted)}
+.board-wrap{background:#4b3020;border:7px solid #372216;border-radius:18px;padding:8px;overflow:hidden}
+#board{position:relative;width:100%;aspect-ratio:1/1;background:var(--board);border-radius:12px;overflow:hidden}
+.path{position:absolute;inset:0;width:100%;height:100%}
+.node{position:absolute;transform:translate(-50%,-50%);width:28px;height:28px;border-radius:50%;border:2px solid #7d654b;background:#fbf5e7;display:flex;align-items:center;justify-content:center;color:#4c3a29;font-size:9px;font-weight:900;z-index:2}
+.node.corner{width:36px;height:36px;border-width:3px}
+.node.center{width:40px;height:40px;border-width:3px}
+.piece{position:absolute;transform:translate(-50%,-50%);width:25px;height:25px;border-radius:50%;border:2px solid rgba(255,255,255,.8);color:white;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:11px;z-index:5;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.piece.red{background:var(--red)}.piece.blue{background:var(--blue)}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+button{min-height:46px;border-radius:12px;border:1px solid #496b5d;padding:9px 13px;font-size:15px;font-weight:900;cursor:pointer}
+.primary{background:var(--gold);color:#231d09}.dark{background:#0a1913;color:white}.danger{background:#321717;color:#ffd9d9}
+button:disabled{opacity:.45;cursor:not-allowed}
+.turn{text-align:center;padding:10px;border:1px solid var(--line);border-radius:14px;background:#0a1913}
+.turn b{font-size:20px}
+.sticks{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.stick{height:88px;border-radius:999px;background:#d9b27a;border:2px solid #815c34;display:flex;align-items:center;justify-content:center;color:#3b2a1a;font-size:18px;font-weight:900;box-shadow:inset 0 0 0 4px rgba(255,255,255,.12)}
+.stick.back{background:#f2d49c}.stick.front{background:#a87542;color:#fff}
+.result{text-align:center;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:14px;background:#091711}
+.result .big{font-size:32px;font-weight:1000}.result .msg{color:var(--muted);font-size:13px;margin-top:2px}
+.pieces{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.piece-btn{background:#0a1913;color:white;border-color:#496b5d;padding:8px 5px;min-height:54px}
+.piece-btn .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.piece-btn.red .dot{background:var(--red)}.piece-btn.blue .dot{background:var(--blue)}
+.log{max-height:160px;overflow:auto;margin-top:10px;border:1px solid var(--line);border-radius:12px;padding:8px;background:#091711;font-size:12px;line-height:1.5;color:#d7e5df}
+.footer-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.rules{font-size:12px;line-height:1.6;color:var(--muted);margin-top:10px}
+footer{text-align:center;color:#82988f;padding:18px;font-size:13px}
+@media(max-width:520px){
+  .node{width:23px;height:23px;font-size:8px}.node.corner{width:30px;height:30px}.node.center{width:34px;height:34px}
+  .piece{width:22px;height:22px;font-size:10px}
+  .sticks{gap:6px}.stick{height:76px}.pieces{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="badge">⚔️ YHF FAMILY GAME ⚔️</div>
+  <h1>🎲 용호패밀리 윷놀이</h1>
+  <p>두 팀이 한 화면에서 번갈아 실제 플레이</p>
+</header>
+
+<main>
+<section class="panel">
+  <div class="teams">
+    <div id="redTeam" class="team active">
+      <div class="name">🔴 홍팀</div>
+      <small>완주 <b id="redDone">0</b> / 4</small>
+    </div>
+    <div id="blueTeam" class="team">
+      <div class="name">🔵 청팀</div>
+      <small>완주 <b id="blueDone">0</b> / 4</small>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="board-wrap">
+    <div id="board" aria-label="윷놀이 판">
+      <svg class="path" viewBox="0 0 100 100" aria-hidden="true">
+        <rect x="10" y="10" width="80" height="80" rx="2" fill="none" stroke="#8a6e50" stroke-width="1.5"/>
+        <line x1="10" y1="90" x2="90" y2="10" stroke="#9a7b58" stroke-width="1.5"/>
+        <line x1="90" y1="90" x2="10" y2="10" stroke="#9a7b58" stroke-width="1.5"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="controls">
+    <div class="turn">
+      현재 차례<br><b id="turnText">🔴 홍팀</b>
+    </div>
+    <button id="throwBtn" type="button" class="primary">🎲 윷 던지기</button>
+  </div>
+
+  <div id="sticks" class="sticks">
+    <div class="stick back">○</div><div class="stick back">○</div><div class="stick back">○</div><div class="stick back">○</div>
+  </div>
+
+  <div class="result">
+    <div id="resultText" class="big">준비</div>
+    <div id="message" class="msg">윷을 던져주세요.</div>
+  </div>
+
+  <div id="pieceArea">
+    <div style="margin-top:10px;font-weight:900">이동할 말을 선택하세요</div>
+    <div id="pieceButtons" class="pieces"></div>
+  </div>
+
+  <div class="footer-actions">
+    <button id="newGameBtn" type="button" class="dark">새 게임</button>
+    <button id="undoBtn" type="button" class="dark">한 수 되돌리기</button>
+  </div>
+
+  <div id="log" class="log">게임을 시작합니다. 홍팀부터 윷을 던지세요.</div>
+
+  <div class="rules">
+    <b>규칙:</b> 도 1칸 · 개 2칸 · 걸 3칸 · 윷 4칸 · 모 5칸. 윷/모 또는 상대 말을 잡으면 한 번 더 던집니다.
+    같은 팀 말이 같은 칸에 모이면 함께 이동합니다. 먼저 4말을 모두 완주하면 승리합니다.
+  </div>
+</section>
+</main>
+
+<footer>용호패밀리 윷놀이 · 공유용 모바일 게임</footer>
+
+<script>
+(()=>{
+"use strict";
+
+const board=document.getElementById("board");
+const throwBtn=document.getElementById("throwBtn");
+const resultText=document.getElementById("resultText");
+const message=document.getElementById("message");
+const sticksBox=document.getElementById("sticks");
+const pieceButtons=document.getElementById("pieceButtons");
+const turnText=document.getElementById("turnText");
+const redDone=document.getElementById("redDone");
+const blueDone=document.getElementById("blueDone");
+const redTeam=document.getElementById("redTeam");
+const blueTeam=document.getElementById("blueTeam");
+const logEl=document.getElementById("log");
+
+const STEP={도:1,개:2,걸:3,윷:4,모:5};
+
+/* 기본 바깥길 0~20, 지름길 21~28
+   start = 0, finish = 20
+   5에서 A지름길: 5->21->22->23(center)->24->25->20
+   10에서 B지름길:10->26->27->23(center)->24->25->20
+*/
+const positions={
+  0:[10,90],1:[26,90],2:[42,90],3:[58,90],4:[74,90],5:[90,90],
+  6:[90,74],7:[90,58],8:[90,42],9:[90,26],10:[90,10],
+  11:[74,10],12:[58,10],13:[42,10],14:[26,10],15:[10,10],
+  16:[10,26],17:[10,42],18:[10,58],19:[10,74],20:[10,90],
+  21:[76.7,76.7],22:[63.3,63.3],23:[50,50],24:[36.7,36.7],25:[23.3,23.3],
+  26:[76.7,23.3],27:[63.3,36.7],28:[36.7,63.3]
+};
+
+const outerNext={
+  0:1,1:2,2:3,3:4,4:5,5:6,6:7,7:8,8:9,9:10,10:11,11:12,12:13,13:14,14:15,15:16,16:17,17:18,18:19,19:20
+};
+
+let state;
+let history=[];
+
+function freshState(){
+  return {
+    turn:"red",
+    pending:0,
+    pendingName:"",
+    extra:false,
+    winner:null,
+    pieces:{
+      red:[{pos:-1,route:"outer"},{pos:-1,route:"outer"},{pos:-1,route:"outer"},{pos:-1,route:"outer"}],
+      blue:[{pos:-1,route:"outer"},{pos:-1,route:"outer"},{pos:-1,route:"outer"},{pos:-1,route:"outer"}]
+    }
+  };
+}
+
+function cloneState(){return JSON.parse(JSON.stringify(state))}
+function saveHistory(){history.push(cloneState());if(history.length>40)history.shift()}
+
+function addLog(text){
+  const d=document.createElement("div");
+  d.textContent=text;
+  logEl.appendChild(d);
+  logEl.scrollTop=logEl.scrollHeight;
+}
+
+function routeNext(piece){
+  const p=piece.pos;
+
+  if(piece.route==="a"){
+    const map={5:21,21:22,22:23,23:24,24:25,25:20};
+    return map[p] ?? 20;
+  }
+  if(piece.route==="b"){
+    const map={10:26,26:27,27:23,23:24,24:25,25:20};
+    return map[p] ?? 20;
+  }
+
+  return outerNext[p] ?? 20;
+}
+
+function moveOne(piece,steps){
+  if(piece.pos<0){
+    piece.pos=0;
+    steps--;
+  }
+
+  while(steps>0 && piece.pos<20){
+    if(piece.route==="outer" && piece.pos===5){
+      piece.route="a";
+    }else if(piece.route==="outer" && piece.pos===10){
+      piece.route="b";
+    }
+
+    piece.pos=routeNext(piece);
+    steps--;
+  }
+
+  if(piece.pos>=20){
+    piece.pos=20;
+  }
+}
+
+function samePosition(a,b){
+  return a.pos===b.pos && a.pos>=0 && a.pos<20;
+}
+
+function groupIndices(team,index){
+  const target=state.pieces[team][index];
+  if(target.pos<0)return [index];
+  const arr=[];
+  state.pieces[team].forEach((p,i)=>{
+    if(samePosition(p,target) && p.route===target.route) arr.push(i);
+  });
+  return arr.length?arr:[index];
+}
+
+function capture(team,movedPiece){
+  if(movedPiece.pos<0 || movedPiece.pos>=20)return 0;
+  const other=team==="red"?"blue":"red";
+  let count=0;
+
+  state.pieces[other].forEach(p=>{
+    if(samePosition(p,movedPiece)){
+      p.pos=-1;
+      p.route="outer";
+      count++;
+    }
+  });
+  return count;
+}
+
+function doneCount(team){
+  return state.pieces[team].filter(p=>p.pos>=20).length;
+}
+
+function nodeLabel(i){
+  if(i===0)return "출";
+  if(i===20)return "끝";
+  if(i===23)return "중";
+  return "";
+}
+
+function buildBoard(){
+  [...Array(21).keys(),21,22,23,24,25,26,27].forEach(i=>{
+    if(i===20)return;
+    const xy=positions[i];
+    if(!xy)return;
+
+    const n=document.createElement("div");
+    n.className="node";
+    if([0,5,10,15].includes(i))n.classList.add("corner");
+    if(i===23)n.classList.add("center");
+    n.style.left=xy[0]+"%";
+    n.style.top=xy[1]+"%";
+    n.textContent=nodeLabel(i);
+    board.appendChild(n);
+  });
+}
+
+function renderPiecesOnBoard(){
+  board.querySelectorAll(".piece").forEach(x=>x.remove());
+
+  ["red","blue"].forEach(team=>{
+    const groups={};
+
+    state.pieces[team].forEach((p,i)=>{
+      if(p.pos<0 || p.pos>=20)return;
+      const key=p.pos+"|"+p.route;
+      (groups[key] ||= []).push(i);
+    });
+
+    Object.entries(groups).forEach(([key,indices])=>{
+      const [posStr]=key.split("|");
+      const pos=Number(posStr);
+      const xy=positions[pos];
+      if(!xy)return;
+
+      indices.forEach((idx,k)=>{
+        const el=document.createElement("div");
+        el.className="piece "+team;
+        el.textContent=idx+1;
+        const offsetX=(team==="red"?-1:1)*(7+(k%2)*6);
+        const offsetY=(Math.floor(k/2))*7-3;
+        el.style.left=`calc(${xy[0]}% + ${offsetX}px)`;
+        el.style.top=`calc(${xy[1]}% + ${offsetY}px)`;
+        board.appendChild(el);
+      });
+    });
+  });
+}
+
+function pieceText(team,i,p){
+  if(p.pos<0)return `${i+1}번 말 · 출발 전`;
+  if(p.pos>=20)return `${i+1}번 말 · 완주`;
+  return `${i+1}번 말 · 진행 중`;
+}
+
+function renderPieceButtons(){
+  pieceButtons.innerHTML="";
+  state.pieces[state.turn].forEach((p,i)=>{
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.className=`piece-btn ${state.turn}`;
+    btn.innerHTML=`<span class="dot"></span>${pieceText(state.turn,i,p)}`;
+    btn.disabled=state.pending===0 || p.pos>=20 || !!state.winner;
+    btn.addEventListener("click",()=>moveSelected(i));
+    pieceButtons.appendChild(btn);
+  });
+}
+
+function render(){
+  renderPiecesOnBoard();
+
+  turnText.textContent=state.turn==="red"?"🔴 홍팀":"🔵 청팀";
+  redDone.textContent=doneCount("red");
+  blueDone.textContent=doneCount("blue");
+
+  redTeam.classList.toggle("active",state.turn==="red");
+  blueTeam.classList.toggle("active",state.turn==="blue");
+
+  throwBtn.disabled=state.pending>0 || !!state.winner;
+  renderPieceButtons();
+
+  if(state.winner){
+    resultText.textContent="승리!";
+    message.textContent=(state.winner==="red"?"홍팀":"청팀")+"이 4말을 모두 완주했습니다. 🎉";
+  }
+}
+
+function renderSticks(vals){
+  sticksBox.innerHTML="";
+  vals.forEach(v=>{
+    const s=document.createElement("div");
+    s.className="stick "+(v?"front":"back");
+    s.textContent=v?"●":"○";
+    sticksBox.appendChild(s);
+  });
+}
+
+function throwYut(){
+  if(state.pending>0 || state.winner)return;
+
+  saveHistory();
+
+  const vals=Array.from({length:4},()=>Math.random()<0.5?1:0);
+  const count=vals.reduce((a,b)=>a+b,0);
+
+  let name;
+  if(count===0)name="모";
+  else if(count===1)name="도";
+  else if(count===2)name="개";
+  else if(count===3)name="걸";
+  else name="윷";
+
+  state.pending=STEP[name];
+  state.pendingName=name;
+  state.extra=(name==="윷" || name==="모");
+
+  renderSticks(vals);
+  resultText.textContent=name;
+  message.textContent=`${name}! ${state.pending}칸 이동할 말을 고르세요.${state.extra?" 이동 후 한 번 더 던집니다.":""}`;
+  addLog(`${state.turn==="red"?"홍팀":"청팀"}: ${name}`);
+  render();
+}
+
+function moveSelected(index){
+  if(state.pending===0 || state.winner)return;
+
+  saveHistory();
+
+  const team=state.turn;
+  const members=groupIndices(team,index);
+  const leader=state.pieces[team][members[0]];
+
+  members.forEach(i=>{
+    state.pieces[team][i].route=leader.route;
+    moveOne(state.pieces[team][i],state.pending);
+  });
+
+  const moved=state.pieces[team][members[0]];
+  const caught=capture(team,moved);
+
+  const teamName=team==="red"?"홍팀":"청팀";
+  addLog(`${teamName} ${members.map(i=>i+1).join(",")}번 말 이동${caught?` · 상대 ${caught}말 잡음`:""}`);
+
+  if(doneCount(team)===4){
+    state.winner=team;
+    state.pending=0;
+    state.extra=false;
+    render();
+    addLog(`🎉 ${teamName} 승리!`);
+    return;
+  }
+
+  const getsExtra=state.extra || caught>0;
+
+  state.pending=0;
+  state.pendingName="";
+  state.extra=false;
+
+  if(getsExtra){
+    message.textContent=caught>0?"상대 말을 잡았습니다! 한 번 더 던지세요.":"윷/모! 한 번 더 던지세요.";
+  }else{
+    state.turn=team==="red"?"blue":"red";
+    message.textContent=(state.turn==="red"?"홍팀":"청팀")+" 차례입니다.";
+  }
+
+  render();
+}
+
+function resetGame(){
+  state=freshState();
+  history=[];
+  resultText.textContent="준비";
+  message.textContent="윷을 던져주세요.";
+  renderSticks([0,0,0,0]);
+  logEl.innerHTML="게임을 시작합니다. 홍팀부터 윷을 던지세요.";
+  render();
+}
+
+function undo(){
+  if(!history.length)return;
+  state=history.pop();
+  resultText.textContent="되돌림";
+  message.textContent="이전 상태로 되돌렸습니다.";
+  render();
+}
+
+throwBtn.addEventListener("click",throwYut);
+document.getElementById("newGameBtn").addEventListener("click",resetGame);
+document.getElementById("undoBtn").addEventListener("click",undo);
+
+buildBoard();
+resetGame();
+})();
+</script>
+</body>
+</html>
